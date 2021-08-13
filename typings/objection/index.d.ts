@@ -1287,7 +1287,7 @@ declare namespace Objection {
   }
 
   export interface AjvConfig {
-    onCreateAjv(ajv: ajv.Ajv): void;
+    onCreateAjv(ajv: ajv.AnySchemaObject): void;
     options?: ajv.Options;
   }
 
