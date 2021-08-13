@@ -12,9 +12,9 @@
 // * Karl Blomster <https://github.com/kblomster>
 // * And many others: See <https://github.com/Vincit/objection.js/blob/master/typings/objection/index.d.ts>
 
-import Ajv, { Options as AjvOptions } from 'ajv';
+import * as ajv from 'ajv';
 import * as dbErrors from 'db-errors';
-import { Knex } from 'knex';
+import * as Knex from 'knex';
 
 // Export the entire Objection namespace.
 export = Objection;
@@ -119,7 +119,7 @@ declare namespace Objection {
     castTo(sqlType: string): this;
   }
 
-  type Raw = RawBuilder | Knex.Raw;
+  type Raw = RawBuilder;
   type Operator = string;
   type ColumnRef = string | Raw | ReferenceBuilder;
   type TableRef<QB extends AnyQueryBuilder> = ColumnRef | AnyQueryBuilder | CallbackVoid<QB>;
@@ -305,11 +305,6 @@ declare namespace Objection {
    * Gets the single item query builder type for a query builder.
    */
   type SingleQueryBuilder<T extends { SingleQueryBuilderType: any }> = T['SingleQueryBuilderType'];
-
-  /**
-   * Gets the single or undefined item query builder type for a query builder.
-   */
-  type MaybeSingleQueryBuilder<QB extends AnyQueryBuilder> = QB['MaybeSingleQueryBuilderType'];
 
   /**
    * Gets the multi-item query builder type for a query builder.
@@ -529,7 +524,7 @@ declare namespace Objection {
   interface JoinMethod<QB extends AnyQueryBuilder> {
     (table: TableRef<QB>, leftCol: ColumnRef, op: Operator, rightCol: ColumnRef): QB;
     (table: TableRef<QB>, leftCol: ColumnRef, rightCol: ColumnRef): QB;
-    (table: TableRef<QB>, cb: CallbackVoid<Knex.JoinClause>): QB;
+    (table: TableRef<QB>, cb: CallbackVoid<Knex.Knex.JoinClause>): QB;
     (table: TableRef<QB>, raw: Raw): QB;
     (raw: Raw): QB;
   }
@@ -571,7 +566,7 @@ declare namespace Objection {
 
   interface FirstMethod {
     <QB extends AnyQueryBuilder>(this: QB): QB extends ArrayQueryBuilder<QB>
-      ? MaybeSingleQueryBuilder<QB>
+      ? SingleQueryBuilder<QB>
       : QB;
   }
 
@@ -594,6 +589,10 @@ declare namespace Objection {
     (arg: T): QB;
   }
 
+  interface OptionalOneArgMethod<T, QB extends AnyQueryBuilder> {
+    (arg?: T): QB;
+  }
+
   interface StringReturningMethod {
     (): string;
   }
@@ -611,7 +610,7 @@ declare namespace Objection {
   }
 
   interface ColumnInfoMethod<QB extends AnyQueryBuilder> {
-    (): Promise<Knex.ColumnInfo>;
+    (): Promise<Knex.Knex.ColumnInfo>;
   }
 
   interface TableRefForMethod {
@@ -671,7 +670,7 @@ declare namespace Objection {
   }
 
   interface OnBuildKnexCallback<QB extends AnyQueryBuilder> {
-    (this: QB, knexQuery: Knex.QueryBuilder, query: QB): void;
+    (this: QB, knexQuery: Knex.default.QueryBuilder, query: QB): void;
   }
 
   interface OnBuildKnexMethod<QB extends AnyQueryBuilder> {
@@ -755,7 +754,7 @@ declare namespace Objection {
   export interface GraphOptions {
     minimize?: boolean;
     separator?: string;
-    aliases?: { [key: string]: string };
+    aliases?: {[key: string]: string};
     joinOperation?: string;
     maxBatchSize?: number;
   }
@@ -799,13 +798,7 @@ declare namespace Objection {
     [key: string]: any;
   }
 
-  export interface CatchablePromiseLike<R> extends PromiseLike<R> {
-    catch<FR = never>(
-      onrejected?: ((reason: any) => FR | PromiseLike<FR>) | undefined | null
-    ): Promise<R | FR>;
-  }
-
-  export class QueryBuilder<M extends Model, R = M[]> implements CatchablePromiseLike<R> {
+  export class QueryBuilder<M extends Model, R = M[]> extends Promise<R> {
     static forClass: ForClassMethod;
 
     select: SelectMethod<this>;
@@ -976,9 +969,9 @@ declare namespace Objection {
     groupBy: GroupByMethod<this>;
     groupByRaw: RawInterface<this>;
 
-    findById(id: MaybeCompositeId): MaybeSingleQueryBuilder<this>;
+    findById(id: MaybeCompositeId): SingleQueryBuilder<this>;
     findByIds(ids: MaybeCompositeId[]): this;
-    findOne: WhereMethod<MaybeSingleQueryBuilder<this>>;
+    findOne: WhereMethod<SingleQueryBuilder<this>>;
 
     execute(): Promise<R>;
     castTo<MC extends Model>(modelClass: ModelConstructor<MC>): QueryBuilderType<MC>;
@@ -1054,10 +1047,7 @@ declare namespace Objection {
     // Deprecated
     allowUpsert: AllowGraphMethod<this>;
 
-    throwIfNotFound: (
-      arg?: any
-    ) => R extends Model | undefined ? SingleQueryBuilder<QueryBuilder<M, M>> : this;
-
+    throwIfNotFound: OptionalOneArgMethod<object, this>;
     returning: ReturningMethod;
     forUpdate: IdentityMethod<this>;
     forShare: IdentityMethod<this>;
@@ -1078,7 +1068,7 @@ declare namespace Objection {
     timeout: TimeoutMethod<this>;
     columnInfo: ColumnInfoMethod<this>;
 
-    toKnexQuery<T = ModelObject<M>>(): Knex.QueryBuilder<T, T[]>;
+    toKnexQuery<T = ModelObject<M>>(): Knex.default.QueryBuilder;
     clone(): this;
 
     // Deprecated
@@ -1166,21 +1156,9 @@ declare namespace Objection {
 
     ArrayQueryBuilderType: QueryBuilder<M, M[]>;
     SingleQueryBuilderType: QueryBuilder<M, M>;
-    MaybeSingleQueryBuilderType: QueryBuilder<M, M | undefined>;
     NumberQueryBuilderType: QueryBuilder<M, number>;
     PageQueryBuilderType: QueryBuilder<M, Page<M>>;
-
-    then<R1 = R, R2 = never>(
-      onfulfilled?: ((value: R) => R1 | PromiseLike<R1>) | undefined | null,
-      onrejected?: ((reason: any) => R2 | PromiseLike<R2>) | undefined | null
-    ): Promise<R1 | R2>;
-
-    catch<FR = never>(
-      onrejected?: ((reason: any) => FR | PromiseLike<FR>) | undefined | null
-    ): Promise<R | FR>;
   }
-
-  type X<T> = Promise<T>;
 
   interface FetchGraphOptions {
     transaction?: TransactionOrKnex;
@@ -1206,8 +1184,8 @@ declare namespace Objection {
     result?: R;
   }
 
-  export type Transaction = Knex.Transaction;
-  export type TransactionOrKnex = Transaction | Knex;
+  export type Transaction = Knex.Knex.Transaction;
+  export type TransactionOrKnex = Transaction | Knex.Knex;
 
   export interface RelationMappings {
     [relationName: string]: RelationMapping<any>;
@@ -1309,8 +1287,8 @@ declare namespace Objection {
   }
 
   export interface AjvConfig {
-    onCreateAjv(ajv: Ajv): void;
-    options?: AjvOptions;
+    onCreateAjv(ajv: ajv.Ajv): void;
+    options?: ajv.Options;
   }
 
   export class AjvValidator extends Validator {
@@ -1401,7 +1379,7 @@ declare namespace Objection {
   }
 
   export interface FetchTableMetadataOptions {
-    knex?: Knex;
+    knex?: Knex.Knex;
     force?: boolean;
     table?: string;
   }
@@ -1478,8 +1456,8 @@ declare namespace Objection {
     tableMetadata(opt?: TableMetadataOptions): TableMetadata;
     fetchTableMetadata(opt?: FetchTableMetadataOptions): Promise<TableMetadata>;
 
-    knex(knex?: Knex): Knex;
-    knexQuery(): Knex.QueryBuilder;
+    knex(knex?: Knex.Knex): Knex.Knex;
+    knexQuery(): Knex.default.QueryBuilder;
     startTransaction(knexOrTransaction?: TransactionOrKnex): Promise<Transaction>;
 
     transaction<T>(callback: (trx: Transaction) => Promise<T>): Promise<T>;
@@ -1615,8 +1593,8 @@ declare namespace Objection {
     static tableMetadata(opt?: TableMetadataOptions): TableMetadata;
     static fetchTableMetadata(opt?: FetchTableMetadataOptions): Promise<TableMetadata>;
 
-    static knex(knex?: Knex): Knex;
-    static knexQuery(): Knex.QueryBuilder;
+    static knex(knex?: Knex.Knex): Knex.Knex;
+    static knexQuery(): Knex.Knex.QueryBuilder;
     static startTransaction(knexOrTransaction?: TransactionOrKnex): Promise<Transaction>;
 
     static transaction<T>(callback: (trx: Transaction) => Promise<T>): Promise<T>;
@@ -1759,8 +1737,8 @@ declare namespace Objection {
     $traverseAsync(filterConstructor: typeof Model, traverser: TraverserFunction): Promise<this>;
     $traverseAsync(traverser: TraverserFunction): Promise<this>;
 
-    $knex(): Knex;
-    $transaction(): Knex;
+    $knex(): Knex.Knex;
+    $transaction(): Knex.Knex;
 
     QueryBuilderType: QueryBuilder<this, this[]>;
   }
@@ -1774,7 +1752,7 @@ declare namespace Objection {
    * @tutorial https://vincit.github.io/objection.js/guide/transactions.html#creating-a-transaction
    */
   export interface transaction {
-    start(knexOrModel: Knex | AnyModelConstructor): Promise<Transaction>;
+    start(knexOrModel: Knex.Knex | AnyModelConstructor): Promise<Transaction>;
 
     <MC1 extends AnyModelConstructor, ReturnValue>(
       modelClass1: MC1,
@@ -1852,13 +1830,13 @@ declare namespace Objection {
     ): Promise<ReturnValue>;
 
     <ReturnValue>(
-      knex: Knex,
+      knex: Knex.Knex,
       callback: (trx: Transaction) => Promise<ReturnValue>
     ): Promise<ReturnValue>;
   }
 
   interface initialize {
-    (knex: Knex, modelClasses: AnyModelConstructor[]): Promise<void>;
+    (knex: Knex.Knex, modelClasses: AnyModelConstructor[]): Promise<void>;
     (modelClasses: AnyModelConstructor[]): Promise<void>;
   }
 
